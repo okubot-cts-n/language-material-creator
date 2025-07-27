@@ -792,6 +792,27 @@ def show_quality_checker():
     st.header("🔍 品質チェッカー")
     st.markdown("**独立したチェック機能** - 生成済み教材の品質を分析")
     
+    # ヘルプ情報
+    with st.expander("💡 重複修復機能の使い方", expanded=False):
+        st.markdown("""
+        **🔄 重複表現検出時の修復方法：**
+        
+        1. **手動修復**
+           - 各重複箇所を個別に手動で修正
+           - 完全にコントロールできるため最も確実
+        
+        2. **自動修復（AI生成）**
+           - Claude AIが同義の代替表現を生成
+           - 迅速に修復可能だが、生成結果の確認が必要
+        
+        3. **スキップ**
+           - その重複をそのまま残す（許容範囲の場合）
+        
+        **✅ 修復後の手順：**
+        - 「🔄 修復後に再チェック」ボタンで再度品質チェック実行
+        - 重複が解消されたことを確認
+        """)
+    
     if not st.session_state.generated_materials:
         st.info("チェック対象の教材がありません。まず教材を生成してください。")
         return
@@ -867,6 +888,13 @@ def perform_quality_check(materials, check_context=True, check_consistency=True,
         if duplicate_issues:
             for issue in duplicate_issues:
                 st.warning(f"⚠️ {issue}")
+            
+            # 重複修復セクション
+            st.markdown("---")
+            st.subheader("🔧 重複修復")
+            
+            if st.session_state.get('duplicate_details'):
+                show_duplicate_repair_ui()
         else:
             st.success("✅ 重複は検出されませんでした")
     
@@ -908,20 +936,183 @@ def check_level_consistency(materials):
     return issues
 
 def check_duplicates(materials):
-    """重複チェック"""
+    """重複チェック（改良版）"""
     issues = []
+    duplicates_detailed = []
     
-    # 簡単な重複チェック（キーフレーズベース）
-    expressions_seen = set()
+    # より詳細な重複チェック
+    expressions_map = {}  # 表現 -> [(material_index, expression_index)]
     
     for i, material in enumerate(materials):
         if 'useful_expressions' in material:
-            for expr in material['useful_expressions']:
-                if expr.lower() in expressions_seen:
-                    issues.append(f"教材{i+1}: 重複表現検出 '{expr}'")
-                expressions_seen.add(expr.lower())
+            for j, expr in enumerate(material['useful_expressions']):
+                expr_clean = expr.lower().strip()
+                # 英語部分のみを抽出（日本語説明を除外）
+                if ':' in expr:
+                    expr_clean = expr.split(':')[1].strip().lower()
+                elif '-' in expr:
+                    expr_clean = expr.split('-')[0].strip().lower()
+                
+                if expr_clean in expressions_map:
+                    expressions_map[expr_clean].append((i, j, expr))
+                else:
+                    expressions_map[expr_clean] = [(i, j, expr)]
+    
+    # 重複が見つかった場合の詳細情報を収集
+    for expr_clean, occurrences in expressions_map.items():
+        if len(occurrences) > 1:
+            material_nums = [f"教材{i+1}" for i, j, expr in occurrences]
+            issues.append(f"重複表現: '{expr_clean}' が {', '.join(material_nums)} で重複")
+            duplicates_detailed.append({
+                'expression': expr_clean,
+                'occurrences': occurrences,
+                'original_expressions': [expr for i, j, expr in occurrences]
+            })
+    
+    # session_stateに詳細情報を保存
+    if 'duplicate_details' not in st.session_state:
+        st.session_state.duplicate_details = []
+    st.session_state.duplicate_details = duplicates_detailed
     
     return issues
+
+def show_duplicate_repair_ui():
+    """重複修復UI"""
+    if not st.session_state.get('duplicate_details'):
+        return
+    
+    st.write("**検出された重複表現の修復方法を選択してください：**")
+    
+    for i, duplicate in enumerate(st.session_state.duplicate_details):
+        expr = duplicate['expression']
+        occurrences = duplicate['occurrences']
+        original_exprs = duplicate['original_expressions']
+        
+        with st.expander(f"🔄 重複表現 {i+1}: '{expr}' ({len(occurrences)}箇所)", expanded=True):
+            # 重複箇所の詳細表示
+            st.write("**重複箇所:**")
+            for j, (mat_idx, expr_idx, original) in enumerate(occurrences):
+                st.write(f"• 教材{mat_idx+1}: {original}")
+            
+            # 修復方法の選択
+            repair_method = st.radio(
+                f"修復方法を選択 (重複{i+1})",
+                ["手動修復", "自動修復（AI生成）", "スキップ"],
+                key=f"repair_method_{i}"
+            )
+            
+            if repair_method == "手動修復":
+                st.write("**各箇所の表現を手動で修正:**")
+                new_expressions = []
+                for j, (mat_idx, expr_idx, original) in enumerate(occurrences):
+                    new_expr = st.text_input(
+                        f"教材{mat_idx+1}の新しい表現:",
+                        value=original,
+                        key=f"manual_expr_{i}_{j}"
+                    )
+                    new_expressions.append((mat_idx, expr_idx, new_expr))
+                
+                if st.button(f"手動修復を適用", key=f"apply_manual_{i}"):
+                    apply_manual_repair(new_expressions)
+                    st.success("✅ 手動修復を適用しました")
+                    st.rerun()
+            
+            elif repair_method == "自動修復（AI生成）":
+                st.write("**AI が代替表現を生成します：**")
+                
+                if st.button(f"代替表現を生成", key=f"generate_alt_{i}"):
+                    with st.spinner("代替表現を生成中..."):
+                        alternatives = generate_alternative_expressions(expr, len(occurrences))
+                        st.session_state[f'alternatives_{i}'] = alternatives
+                
+                # 生成された代替表現の表示と適用
+                if f'alternatives_{i}' in st.session_state:
+                    alternatives = st.session_state[f'alternatives_{i}']
+                    st.write("**生成された代替表現:**")
+                    
+                    auto_repairs = []
+                    for j, (mat_idx, expr_idx, original) in enumerate(occurrences):
+                        if j < len(alternatives):
+                            st.write(f"• 教材{mat_idx+1}: {original} → **{alternatives[j]}**")
+                            auto_repairs.append((mat_idx, expr_idx, alternatives[j]))
+                        else:
+                            st.write(f"• 教材{mat_idx+1}: {original} (変更なし)")
+                            auto_repairs.append((mat_idx, expr_idx, original))
+                    
+                    if st.button(f"自動修復を適用", key=f"apply_auto_{i}"):
+                        apply_manual_repair(auto_repairs)
+                        st.success("✅ 自動修復を適用しました")
+                        st.rerun()
+    
+    # 全体の修復完了ボタン
+    if st.button("🔄 修復後に再チェック", type="primary"):
+        # 重複詳細をクリア
+        if 'duplicate_details' in st.session_state:
+            del st.session_state.duplicate_details
+        st.success("✅ 修復完了！品質チェックを再実行してください。")
+        st.rerun()
+
+def apply_manual_repair(repairs):
+    """手動修復を適用"""
+    for mat_idx, expr_idx, new_expr in repairs:
+        if mat_idx < len(st.session_state.generated_materials):
+            material = st.session_state.generated_materials[mat_idx]
+            if 'useful_expressions' in material and expr_idx < len(material['useful_expressions']):
+                material['useful_expressions'][expr_idx] = new_expr
+
+def generate_alternative_expressions(base_expression, count):
+    """代替表現をAIで生成"""
+    try:
+        from claude_api import ClaudeAPIClient
+        claude_client = ClaudeAPIClient()
+        
+        prompt = f"""
+以下のビジネス英語表現と同じ意味で、異なる表現方法の代替案を{count}個生成してください。
+
+【元の表現】: {base_expression}
+
+【要件】:
+1. 同じ意味・ニュアンスを保つ
+2. ビジネス場面で適切
+3. 自然な英語表現
+4. 各代替案は異なる単語・構造を使用
+
+【出力形式】:
+JSON配列で{count}個の代替表現を返してください。
+例: ["alternative 1", "alternative 2", "alternative 3"]
+"""
+        
+        response = claude_client.client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        if hasattr(response, 'content') and len(response.content) > 0:
+            content = response.content[0].text.strip()
+            # JSON部分を抽出
+            if '```json' in content:
+                json_str = content.split('```json')[1].split('```')[0].strip()
+            elif '[' in content and ']' in content:
+                start = content.find('[')
+                end = content.rfind(']') + 1
+                json_str = content[start:end]
+            else:
+                json_str = content
+            
+            import json
+            alternatives = json.loads(json_str)
+            return alternatives
+        
+    except Exception as e:
+        print(f"代替表現生成エラー: {e}")
+    
+    # フォールバック: 基本的な代替案
+    return [
+        f"alternative to {base_expression}",
+        f"another way to say {base_expression}",
+        f"different expression for {base_expression}"
+    ][:count]
 
 def show_output_management():
     """出力管理タブ"""
