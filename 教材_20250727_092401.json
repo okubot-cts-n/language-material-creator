@@ -1,0 +1,30 @@
+{
+  "user_info": {
+    "industry": "製造業",
+    "job_role": "経理・財務",
+    "english_level": "中上級（TOEIC 700-850）",
+    "learning_goal": "海外クライアントとの商談",
+    "material_type": "ロールプレイ",
+    "urgency": "通常",
+    "created_at": "2025-07-27T09:21:53.053044"
+  },
+  "final_situation": "クライアントとの初回面談 - 初対面の相手との場合",
+  "generated_material": {
+    "type": "ロールプレイ",
+    "model_dialogue": "A: 田中と申します。本日はお時間をいただき、ありがとうございます。\nB: こちらこそ、ありがとうございます。Smith です。よろしくお願いします。\nA: 早速ですが、弊社の新しいソリューションについてご紹介させていただきたいと思います。\nB: はい、ぜひお聞かせください。どのようなソリューションでしょうか？\nA: こちらは業務効率を30%向上させることができるシステムです。\nB: それは興味深いですね。具体的にはどのような機能があるのでしょうか？",
+    "useful_expressions": [
+      "お時間をいただき、ありがとうございます - Thank you for taking your time",
+      "早速ですが - Let me get straight to the point",
+      "ご紹介させていただきたい - I would like to introduce",
+      "業務効率を向上させる - improve work efficiency",
+      "興味深いですね - That sounds interesting"
+    ],
+    "additional_questions": [
+      "このシステムの導入にはどのくらいの期間が必要ですか？",
+      "初期費用はどの程度でしょうか？",
+      "サポート体制について教えてください。"
+    ],
+    "audio_script": "※音声ファイル作成用スクリプト（開発予定）"
+  },
+  "created_at": "2025-07-27T09:24:01.088466"
+}

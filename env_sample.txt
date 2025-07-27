@@ -1,0 +1,11 @@
+# このファイルを参考に .env ファイルを作成してください
+
+# Claude API設定
+ANTHROPIC_API_KEY=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
+
+# Google API設定（設定後にコメントアウトを外してください）
+# GOOGLE_APPLICATION_CREDENTIALS=./google_credentials.json
+
+# アプリケーション設定
+APP_DEBUG=True
+DEFAULT_LANGUAGE=ja 
