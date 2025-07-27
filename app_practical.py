@@ -696,8 +696,11 @@ def show_batch_generation():
             col_gen1, col_gen2 = st.columns(2)
             with col_gen1:
                 include_audio = st.checkbox("音声スクリプト含む", True, key="batch_audio")
-            with col_gen2:
                 quality_check = st.checkbox("生成後品質チェック", True, key="batch_quality")
+            with col_gen2:
+                st.info("**🔧 重複回避機能**\n既存の教材や生成済みの表現と重複しないよう、AI生成時に自動的に回避します。")
+                if quality_check:
+                    st.success("✅ 品質チェックにより重複表現の自動修正も実行されます")
             
             # 生成実行
             if st.button("🚀 一括生成開始", type="primary"):
@@ -727,12 +730,21 @@ def show_batch_generation():
             st.info("まだ教材が生成されていません")
 
 def generate_materials(topics, include_audio, quality_check):
-    """教材生成処理"""
+    """教材生成処理（重複回避機能付き）"""
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     client = ClaudeAPIClient()
     generated_materials = []
+    all_used_expressions = set()  # 使用済み表現を追跡
+    
+    # 既存の教材からも使用済み表現を収集
+    for existing_material in st.session_state.generated_materials:
+        if 'useful_expressions' in existing_material:
+            for expr in existing_material['useful_expressions']:
+                # 英語部分のみを抽出
+                expr_clean = extract_english_part(expr)
+                all_used_expressions.add(expr_clean.lower())
     
     total_topics = len(topics)
     
@@ -748,27 +760,139 @@ def generate_materials(topics, include_audio, quality_check):
             enhanced_context = st.session_state.context_data.copy()
             enhanced_context['template_config'] = template_config
             
+            # 使用済み表現を渡して重複回避
             if template_type == 'ロールプレイ':
-                material = client.generate_roleplay_material(enhanced_context, topic, template_config)
+                material = client.generate_roleplay_material(enhanced_context, topic, template_config, list(all_used_expressions))
             elif template_type == 'ディスカッション':
-                material = client.generate_discussion_material(enhanced_context, topic, template_config)
+                material = client.generate_discussion_material(enhanced_context, topic, template_config, list(all_used_expressions))
             else:  # 表現練習
-                material = client.generate_expression_practice_material(enhanced_context, topic, template_config)
+                material = client.generate_expression_practice_material(enhanced_context, topic, template_config, list(all_used_expressions))
             
             material['topic'] = topic
             material['generated_at'] = datetime.now().isoformat()
             generated_materials.append(material)
+            
+            # 新しく生成された表現を使用済みリストに追加
+            if 'useful_expressions' in material:
+                for expr in material['useful_expressions']:
+                    expr_clean = extract_english_part(expr)
+                    all_used_expressions.add(expr_clean.lower())
             
         except Exception as e:
             st.error(f"❌ '{topic}' の生成中にエラー: {str(e)}")
         
         progress_bar.progress((i + 1) / total_topics)
     
+    # 重複チェックと自動修正
+    if quality_check:
+        status_text.text("🔍 品質チェック中...")
+        generated_materials = auto_fix_duplicates(generated_materials)
+        
+        # 修正後に改めて使用済み表現を更新
+        for material in generated_materials:
+            if 'useful_expressions' in material:
+                for expr in material['useful_expressions']:
+                    expr_clean = extract_english_part(expr)
+                    all_used_expressions.add(expr_clean.lower())
+    
     # 生成完了
     st.session_state.generated_materials.extend(generated_materials)
     status_text.text("✅ 一括生成完了！")
     
     st.success(f"🎉 {len(generated_materials)}件の教材を生成しました")
+
+def extract_english_part(expression):
+    """表現から英語部分のみを抽出"""
+    expr_clean = expression.strip()
+    
+    # 日本語説明を除外（コロンや日本語ダッシュで区切られている場合）
+    if ':' in expr_clean:
+        # "表現: I would like to..." の場合
+        parts = expr_clean.split(':')
+        if len(parts) > 1:
+            expr_clean = parts[1].strip()
+    elif ' - ' in expr_clean:
+        # "I would like to - したい" の場合
+        parts = expr_clean.split(' - ')
+        expr_clean = parts[0].strip()
+    elif '：' in expr_clean:  # 全角コロン
+        parts = expr_clean.split('：')
+        if len(parts) > 1:
+            expr_clean = parts[1].strip()
+    
+    return expr_clean
+
+def auto_fix_duplicates(materials):
+    """生成された教材の重複を自動修正"""
+    from claude_api import ClaudeAPIClient
+    
+    # 重複検出
+    expressions_map = {}
+    for i, material in enumerate(materials):
+        if 'useful_expressions' in material:
+            for j, expr in enumerate(material['useful_expressions']):
+                expr_clean = extract_english_part(expr).lower()
+                if expr_clean in expressions_map:
+                    expressions_map[expr_clean].append((i, j, expr))
+                else:
+                    expressions_map[expr_clean] = [(i, j, expr)]
+    
+    # 重複がある場合の自動修正
+    client = ClaudeAPIClient()
+    fix_count = 0
+    
+    for expr_clean, occurrences in expressions_map.items():
+        if len(occurrences) > 1:
+            # 最初の1つは残し、残りを代替表現に置換
+            for k, (mat_idx, expr_idx, original) in enumerate(occurrences[1:], 1):
+                try:
+                    # 代替表現を生成
+                    alternative = generate_single_alternative(expr_clean, client)
+                    if alternative and alternative.lower() != expr_clean:
+                        materials[mat_idx]['useful_expressions'][expr_idx] = alternative
+                        fix_count += 1
+                except Exception as e:
+                    print(f"自動修正エラー: {e}")
+    
+    if fix_count > 0:
+        st.info(f"🔧 {fix_count}件の重複表現を自動修正しました")
+    
+    return materials
+
+def generate_single_alternative(base_expression, client):
+    """単一の代替表現を生成"""
+    try:
+        prompt = f"""
+以下のビジネス英語表現と同じ意味で、異なる表現方法の代替案を1つ生成してください。
+
+【元の表現】: {base_expression}
+
+【要件】:
+1. 同じ意味・ニュアンスを保つ
+2. ビジネス場面で適切
+3. 自然な英語表現
+4. 元の表現とは異なる単語・構造を使用
+
+【出力形式】:
+代替表現のみを返してください（説明不要）
+"""
+        
+        response = client.client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        if hasattr(response, 'content') and len(response.content) > 0:
+            alternative = response.content[0].text.strip()
+            # 余計な装飾を除去
+            alternative = alternative.replace('"', '').replace("'", "").strip()
+            return alternative
+    
+    except Exception as e:
+        print(f"代替表現生成エラー: {e}")
+    
+    return None
     
     # 品質チェック実行
     if quality_check and generated_materials:

@@ -101,7 +101,7 @@ JSON配列で3個のシチュエーションを返してください。
             print(f"Claude API エラー: {e}")
             return self._get_fallback_situations()
 
-    def generate_roleplay_material(self, context_data: Dict, topic: str, template_config: Dict = None) -> Dict:
+    def generate_roleplay_material(self, context_data: Dict, topic: str, template_config: Dict = None, used_expressions: List[str] = None) -> Dict:
         """ロールプレイ教材を生成"""
         
         # テンプレート設定の適用
@@ -137,6 +137,16 @@ JSON配列で3個のシチュエーションを返してください。
             if sample_questions:
                 sample_section += f"\n- 質問例: {sample_questions}"
         
+        # 使用済み表現の回避指示を追加
+        avoid_expressions_section = ""
+        if used_expressions:
+            avoid_expressions_section = f"""
+【重複回避】
+以下の表現は既に他の教材で使用されているため、これらとは異なる表現を使用してください：
+{', '.join(used_expressions[:10])}  # 最初の10個まで表示
+※同じ意味でも異なる単語・構造の表現を選んでください
+"""
+        
         prompt = f"""
 あなたは語学教材作成の専門家です。以下の情報に基づいて、実践的なロールプレイ教材を作成してください。
 
@@ -159,6 +169,8 @@ JSON配列で3個のシチュエーションを返してください。
 
 {sample_section}
 
+{avoid_expressions_section}
+
 【カスタム指示】
 {custom_instructions}
 
@@ -169,6 +181,7 @@ JSON配列で3個のシチュエーションを返してください。
 4. 指定された英語レベルに適した表現
 5. ビジネスシーンで実際に使用される表現
 6. サンプルテキストのスタイルや構造を参考にする
+7. 使用済み表現とは異なる、多様な表現を使用する
 
 【必要な構成要素】
 - model_dialogue: モデル対話
@@ -212,7 +225,7 @@ JSON配列で3個のシチュエーションを返してください。
             print(f"Claude API エラー: {e}")
             return self._get_fallback_roleplay()
 
-    def generate_discussion_material(self, context_data: Dict, topic: str, template_config: Dict = None) -> Dict:
+    def generate_discussion_material(self, context_data: Dict, topic: str, template_config: Dict = None, used_expressions: List[str] = None) -> Dict:
         """ディスカッション教材を生成"""
         
         # テンプレート設定の適用
@@ -240,6 +253,16 @@ JSON配列で3個のシチュエーションを返してください。
             if sample_materials:
                 sample_section += f"\n- 参考資料例: {sample_materials}"
         
+        # 使用済み表現の回避指示を追加
+        avoid_expressions_section = ""
+        if used_expressions:
+            avoid_expressions_section = f"""
+【重複回避】
+以下の表現は既に他の教材で使用されているため、これらとは異なる表現を使用してください：
+{', '.join(used_expressions[:10])}  # 最初の10個まで表示
+※同じ意味でも異なる単語・構造の表現を選んでください
+"""
+        
         prompt = f"""
 あなたは語学教材作成の専門家です。以下の情報に基づいて、実践的なディスカッション教材を作成してください。
 
@@ -261,6 +284,8 @@ JSON配列で3個のシチュエーションを返してください。
 
 {sample_section}
 
+{avoid_expressions_section}
+
 【カスタム指示】
 {custom_instructions}
 
@@ -271,6 +296,7 @@ JSON配列で3個のシチュエーションを返してください。
 4. 指定された英語レベルに適した内容
 5. ビジネス場面での実用性
 6. サンプルテキストのスタイルや構造を参考にする
+7. 使用済み表現とは異なる、多様な表現を使用する
 
 【必要な構成要素】
 - discussion_topic: ディスカッショントピック
@@ -316,7 +342,7 @@ JSON配列で3個のシチュエーションを返してください。
             print(f"Claude API エラー: {e}")
             return self._get_fallback_discussion()
 
-    def generate_expression_practice_material(self, context_data: Dict, topic: str, template_config: Dict = None) -> Dict:
+    def generate_expression_practice_material(self, context_data: Dict, topic: str, template_config: Dict = None, used_expressions: List[str] = None) -> Dict:
         """表現練習教材を生成"""
         
         # テンプレート設定の適用
@@ -347,6 +373,16 @@ JSON配列で3個のシチュエーションを返してください。
             if chart_generation_prompt:
                 sample_section += f"\n- 図表生成指示: {chart_generation_prompt}"
         
+        # 使用済み表現の回避指示を追加
+        avoid_expressions_section = ""
+        if used_expressions:
+            avoid_expressions_section = f"""
+【重複回避】
+以下の表現は既に他の教材で使用されているため、これらとは異なる表現を使用してください：
+{', '.join(used_expressions[:10])}  # 最初の10個まで表示
+※同じ意味でも異なる単語・構造の表現を選んでください
+"""
+        
         prompt = f"""
 あなたは語学教材作成の専門家です。以下の情報に基づいて、グラフや数値を使った表現練習教材を作成してください。
 
@@ -368,6 +404,8 @@ JSON配列で3個のシチュエーションを返してください。
 
 {sample_section}
 
+{avoid_expressions_section}
+
 【カスタム指示】
 {custom_instructions}
 
@@ -377,6 +415,7 @@ JSON配列で3個のシチュエーションを返してください。
 3. 指定された英語レベルに適した表現
 4. 数値やトレンドの説明練習
 5. サンプルテキストのスタイルや構造を参考にする
+6. 使用済み表現とは異なる、多様な表現を使用する
 
 【必要な構成要素】
 - chart_description: 図表の説明（{explanation_length}）
