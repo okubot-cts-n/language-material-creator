@@ -954,20 +954,140 @@ def show_output_management():
         
         output_format = st.selectbox("出力形式", ["JSON", "Google Docs", "テキストファイル"])
         
-        if st.button("💾 全教材を出力"):
-            export_materials(st.session_state.generated_materials, output_format)
+        # 全教材出力
+        st.markdown("### 📁 全教材出力")
+        if output_format in ["JSON", "テキストファイル"]:
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("💾 全教材を出力", type="primary", key="export_all"):
+                    export_materials(st.session_state.generated_materials, output_format)
+            with col_btn2:
+                # 即座ダウンロード用の準備
+                if output_format == "JSON":
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"materials_{timestamp}.json"
+                    json_data = json.dumps(st.session_state.generated_materials, ensure_ascii=False, indent=2)
+                    st.download_button(
+                        label="📥 JSON即ダウンロード",
+                        data=json_data.encode('utf-8'),
+                        file_name=filename,
+                        mime="application/json",
+                        key="quick_json_all"
+                    )
+                else:  # テキストファイル
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"materials_{timestamp}.txt"
+                    text_content = generate_text_content(st.session_state.generated_materials)
+                    st.download_button(
+                        label="📥 テキスト即ダウンロード",
+                        data=text_content.encode('utf-8'),
+                        file_name=filename,
+                        mime="text/plain",
+                        key="quick_text_all"
+                    )
+        else:
+            if st.button("💾 全教材を出力", type="primary", key="export_all_gdocs"):
+                export_materials(st.session_state.generated_materials, output_format)
         
         # 個別出力
-        st.subheader("🎯 個別出力")
+        st.markdown("### 🎯 個別出力")
         selected_indices = st.multiselect(
             "出力する教材を選択",
             range(len(st.session_state.generated_materials)),
             format_func=lambda x: f"教材{x+1}: {st.session_state.generated_materials[x].get('topic', 'Unknown')}"
         )
         
-        if selected_indices and st.button("📤 選択教材を出力"):
-            selected_materials = [st.session_state.generated_materials[i] for i in selected_indices]
-            export_materials(selected_materials, output_format)
+        if selected_indices:
+            if output_format in ["JSON", "テキストファイル"]:
+                col_btn3, col_btn4 = st.columns(2)
+                with col_btn3:
+                    if st.button("📤 選択教材を出力", key="export_selected"):
+                        selected_materials = [st.session_state.generated_materials[i] for i in selected_indices]
+                        export_materials(selected_materials, output_format)
+                with col_btn4:
+                    # 選択教材の即座ダウンロード
+                    selected_materials = [st.session_state.generated_materials[i] for i in selected_indices]
+                    if output_format == "JSON":
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"selected_materials_{timestamp}.json"
+                        json_data = json.dumps(selected_materials, ensure_ascii=False, indent=2)
+                        st.download_button(
+                            label="📥 JSON即ダウンロード",
+                            data=json_data.encode('utf-8'),
+                            file_name=filename,
+                            mime="application/json",
+                            key="quick_json_selected"
+                        )
+                    else:  # テキストファイル
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"selected_materials_{timestamp}.txt"
+                        text_content = generate_text_content(selected_materials)
+                        st.download_button(
+                            label="📥 テキスト即ダウンロード",
+                            data=text_content.encode('utf-8'),
+                            file_name=filename,
+                            mime="text/plain",
+                            key="quick_text_selected"
+                        )
+            else:
+                if st.button("📤 選択教材を出力", key="export_selected_gdocs"):
+                    selected_materials = [st.session_state.generated_materials[i] for i in selected_indices]
+                    export_materials(selected_materials, output_format)
+
+def generate_text_content(materials):
+    """教材をテキスト形式で生成"""
+    text_content = ""
+    
+    for i, material in enumerate(materials):
+        text_content += f"=== 教材 {i+1}: {material.get('topic', 'Unknown')} ===\n\n"
+        text_content += f"タイプ: {material.get('type', 'Unknown')}\n"
+        text_content += f"生成日時: {material.get('generated_at', 'Unknown')}\n"
+        
+        if 'model_dialogue' in material:
+            text_content += f"\n【対話文】\n{material['model_dialogue']}\n"
+        
+        if 'useful_expressions' in material:
+            text_content += f"\n【有用表現】\n"
+            for expr in material['useful_expressions']:
+                text_content += f"• {expr}\n"
+        
+        if 'additional_questions' in material:
+            text_content += f"\n【追加質問】\n"
+            for q in material['additional_questions']:
+                text_content += f"• {q}\n"
+        
+        if 'discussion_topic' in material:
+            text_content += f"\n【ディスカッショントピック】\n{material['discussion_topic']}\n"
+        
+        if 'background_info' in material:
+            text_content += f"\n【背景情報】\n{material['background_info']}\n"
+        
+        if 'key_points' in material:
+            text_content += f"\n【議論ポイント】\n"
+            for point in material['key_points']:
+                text_content += f"• {point}\n"
+        
+        if 'discussion_questions' in material:
+            text_content += f"\n【討議質問】\n"
+            for q in material['discussion_questions']:
+                text_content += f"• {q}\n"
+        
+        if 'chart_description' in material:
+            text_content += f"\n【図表説明】\n{material['chart_description']}\n"
+        
+        if 'vocabulary' in material:
+            text_content += f"\n【重要語彙】\n"
+            for vocab in material['vocabulary']:
+                text_content += f"• {vocab}\n"
+        
+        if 'practice_questions' in material:
+            text_content += f"\n【練習問題】\n"
+            for q in material['practice_questions']:
+                text_content += f"• {q}\n"
+        
+        text_content += "\n" + "="*50 + "\n\n"
+    
+    return text_content
 
 def export_materials(materials, format_type):
     """教材出力処理"""
@@ -975,9 +1095,16 @@ def export_materials(materials, format_type):
     
     if format_type == "JSON":
         filename = f"materials_{timestamp}.json"
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(materials, f, ensure_ascii=False, indent=2)
-        st.success(f"✅ {filename} に出力しました")
+        json_data = json.dumps(materials, ensure_ascii=False, indent=2)
+        
+        st.download_button(
+            label="📥 JSONファイルをダウンロード",
+            data=json_data.encode('utf-8'),
+            file_name=filename,
+            mime="application/json",
+            key=f"json_download_{timestamp}"
+        )
+        st.success(f"✅ {filename} のダウンロード準備完了")
     
     elif format_type == "Google Docs":
         try:
@@ -995,18 +1122,16 @@ def export_materials(materials, format_type):
     
     elif format_type == "テキストファイル":
         filename = f"materials_{timestamp}.txt"
-        with open(filename, 'w', encoding='utf-8') as f:
-            for i, material in enumerate(materials):
-                f.write(f"=== 教材 {i+1}: {material.get('topic', 'Unknown')} ===\n\n")
-                f.write(f"タイプ: {material.get('type', 'Unknown')}\n")
-                if 'model_dialogue' in material:
-                    f.write(f"\n対話文:\n{material['model_dialogue']}\n")
-                if 'useful_expressions' in material:
-                    f.write(f"\n有用表現:\n")
-                    for expr in material['useful_expressions']:
-                        f.write(f"• {expr}\n")
-                f.write("\n" + "="*50 + "\n\n")
-        st.success(f"✅ {filename} に出力しました")
+        text_content = generate_text_content(materials)
+        
+        st.download_button(
+            label="📥 テキストファイルをダウンロード",
+            data=text_content.encode('utf-8'),
+            file_name=filename,
+            mime="text/plain",
+            key=f"text_download_{timestamp}"
+        )
+        st.success(f"✅ {filename} のダウンロード準備完了")
 
 def generate_audio_prompt(dialogue):
     """音声生成用プロンプトを作成"""
