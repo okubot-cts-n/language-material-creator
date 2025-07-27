@@ -237,13 +237,13 @@ def show_template_management():
             
             with col_b:
                 st.write("**🔧 パーツ構成**")
-                greeting = st.checkbox("挨拶・導入", current_template['parts']['greeting'])
-                needs_assessment = st.checkbox("ニーズ確認", current_template['parts']['needs_assessment'])
-                proposal = st.checkbox("提案・説明", current_template['parts']['proposal'])
-                qa_session = st.checkbox("質疑応答", current_template['parts']['qa_session'])
-                next_action = st.checkbox("次回アクション", current_template['parts']['next_action'])
+                greeting = st.checkbox("挨拶・導入", current_template['parts']['greeting'], key="template_greeting")
+                needs_assessment = st.checkbox("ニーズ確認", current_template['parts']['needs_assessment'], key="template_needs")
+                proposal = st.checkbox("提案・説明", current_template['parts']['proposal'], key="template_proposal")
+                qa_session = st.checkbox("質疑応答", current_template['parts']['qa_session'], key="template_qa")
+                next_action = st.checkbox("次回アクション", current_template['parts']['next_action'], key="template_action")
                 
-                include_audio = st.checkbox("音声スクリプト含む", current_template['include_audio'])
+                include_audio = st.checkbox("音声スクリプト含む", current_template['include_audio'], key="template_audio")
             
             # カスタム指示
             st.write("**📝 カスタム指示**")
@@ -334,8 +334,8 @@ def show_template_management():
             
             with col_b:
                 st.write("**🔧 構成要素**")
-                supporting_materials = st.checkbox("参考資料含む", current_template['supporting_materials'])
-                conclusion_required = st.checkbox("結論必須", current_template['conclusion_required'])
+                supporting_materials = st.checkbox("参考資料含む", current_template['supporting_materials'], key="template_materials")
+                conclusion_required = st.checkbox("結論必須", current_template['conclusion_required'], key="template_conclusion")
             
             custom_instructions = st.text_area(
                 "カスタム指示",
@@ -422,7 +422,7 @@ def show_template_management():
                     value=current_template['practice_questions']
                 )
                 
-                include_numbers = st.checkbox("数値データ含む", current_template['include_numbers'])
+                include_numbers = st.checkbox("数値データ含む", current_template['include_numbers'], key="template_numbers")
             
             custom_instructions = st.text_area(
                 "カスタム指示",
@@ -695,9 +695,9 @@ def show_batch_generation():
             
             col_gen1, col_gen2 = st.columns(2)
             with col_gen1:
-                include_audio = st.checkbox("音声スクリプト含む", True)
+                include_audio = st.checkbox("音声スクリプト含む", True, key="batch_audio")
             with col_gen2:
-                quality_check = st.checkbox("生成後品質チェック", True)
+                quality_check = st.checkbox("生成後品質チェック", True, key="batch_quality")
             
             # 生成実行
             if st.button("🚀 一括生成開始", type="primary"):
@@ -801,10 +801,10 @@ def show_quality_checker():
     with col1:
         st.subheader("📋 チェック項目設定")
         
-        check_context = st.checkbox("コンテキスト準拠チェック", True)
-        check_consistency = st.checkbox("ファイル間整合性チェック", True)
-        check_level = st.checkbox("レベル調整チェック", True)
-        check_duplicate = st.checkbox("重複チェック", True)
+        check_context = st.checkbox("コンテキスト準拠チェック", True, key="quality_context")
+        check_consistency = st.checkbox("ファイル間整合性チェック", True, key="quality_consistency")
+        check_level = st.checkbox("レベル調整チェック", True, key="quality_level")
+        check_duplicate = st.checkbox("重複チェック", True, key="quality_duplicate")
         
         if st.button("🔍 品質チェック実行", type="primary"):
             perform_quality_check(
