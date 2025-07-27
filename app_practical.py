@@ -693,11 +693,26 @@ def show_batch_generation():
             if not selected_topics:
                 selected_topics = st.session_state.context_data['topic_list']
             
-            col_gen1, col_gen2 = st.columns(2)
+            col_gen1, col_gen2, col_gen3 = st.columns(3)
             with col_gen1:
                 include_audio = st.checkbox("音声スクリプト含む", True, key="batch_audio")
                 quality_check = st.checkbox("生成後品質チェック", True, key="batch_quality")
+            
             with col_gen2:
+                # 既存表現の確認
+                existing_count = 0
+                if st.session_state.generated_materials:
+                    for material in st.session_state.generated_materials:
+                        if 'useful_expressions' in material:
+                            existing_count += len(material['useful_expressions'])
+                
+                st.metric("既存表現数", existing_count)
+                if existing_count > 0:
+                    st.success("✅ 重複回避機能が作動します")
+                else:
+                    st.info("初回生成のため回避対象なし")
+            
+            with col_gen3:
                 st.info("**🔧 重複回避機能**\n既存の教材や生成済みの表現と重複しないよう、AI生成時に自動的に回避します。")
                 if quality_check:
                     st.success("✅ 品質チェックにより重複表現の自動修正も実行されます")
@@ -746,6 +761,10 @@ def generate_materials(topics, include_audio, quality_check):
                 expr_clean = extract_english_part(expr)
                 all_used_expressions.add(expr_clean.lower())
     
+    # デバッグ情報: 既存の使用済み表現数を表示
+    if all_used_expressions:
+        st.info(f"🔍 既存教材から {len(all_used_expressions)} 個の使用済み表現を検出しました")
+    
     total_topics = len(topics)
     
     for i, topic in enumerate(topics):
@@ -761,12 +780,16 @@ def generate_materials(topics, include_audio, quality_check):
             enhanced_context['template_config'] = template_config
             
             # 使用済み表現を渡して重複回避
+            used_expressions_list = list(all_used_expressions)
+            if used_expressions_list:
+                status_text.text(f"生成中... {i+1}/{total_topics}: {topic} (回避対象: {len(used_expressions_list)}個)")
+            
             if template_type == 'ロールプレイ':
-                material = client.generate_roleplay_material(enhanced_context, topic, template_config, list(all_used_expressions))
+                material = client.generate_roleplay_material(enhanced_context, topic, template_config, used_expressions_list)
             elif template_type == 'ディスカッション':
-                material = client.generate_discussion_material(enhanced_context, topic, template_config, list(all_used_expressions))
+                material = client.generate_discussion_material(enhanced_context, topic, template_config, used_expressions_list)
             else:  # 表現練習
-                material = client.generate_expression_practice_material(enhanced_context, topic, template_config, list(all_used_expressions))
+                material = client.generate_expression_practice_material(enhanced_context, topic, template_config, used_expressions_list)
             
             material['topic'] = topic
             material['generated_at'] = datetime.now().isoformat()
@@ -802,25 +825,35 @@ def generate_materials(topics, include_audio, quality_check):
     st.success(f"🎉 {len(generated_materials)}件の教材を生成しました")
 
 def extract_english_part(expression):
-    """表現から英語部分のみを抽出"""
+    """表現から英語部分のみを抽出（改良版）"""
+    import re
+    
     expr_clean = expression.strip()
     
-    # 日本語説明を除外（コロンや日本語ダッシュで区切られている場合）
-    if ':' in expr_clean:
-        # "表現: I would like to..." の場合
-        parts = expr_clean.split(':')
-        if len(parts) > 1:
-            expr_clean = parts[1].strip()
-    elif ' - ' in expr_clean:
-        # "I would like to - したい" の場合
-        parts = expr_clean.split(' - ')
-        expr_clean = parts[0].strip()
-    elif '：' in expr_clean:  # 全角コロン
-        parts = expr_clean.split('：')
-        if len(parts) > 1:
-            expr_clean = parts[1].strip()
+    # 各種区切り文字で英語部分を抽出
+    separators = [': ', ':', '：', ' - ', ' – ', ' — ', ' | ', ' / ']
     
-    return expr_clean
+    for sep in separators:
+        if sep in expr_clean:
+            parts = expr_clean.split(sep)
+            if len(parts) >= 2:
+                # 最初の部分が日本語のようなら2番目、そうでなければ1番目
+                first_part = parts[0].strip()
+                second_part = parts[1].strip()
+                
+                # 日本語文字が含まれているかチェック
+                if re.search(r'[あ-んア-ンー一-龯]', first_part):
+                    expr_clean = second_part
+                else:
+                    expr_clean = first_part
+                break
+    
+    # 追加の清理
+    expr_clean = re.sub(r'^["\'\[\(]*', '', expr_clean)  # 先頭の記号を除去
+    expr_clean = re.sub(r'["\'\]\)]*$', '', expr_clean)  # 末尾の記号を除去
+    expr_clean = re.sub(r'\s*-\s*[あ-んア-ンー一-龯].*$', '', expr_clean)  # 末尾の日本語説明を除去
+    
+    return expr_clean.strip()
 
 def auto_fix_duplicates(materials):
     """生成された教材の重複を自動修正"""
